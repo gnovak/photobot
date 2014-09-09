@@ -62,45 +62,68 @@ import flickrapi
 def flickr_obj(api_key='82f7fe9f1801d2bc36a4351d938f4327'):
     return flickrapi.FlickrAPI(api_key)
 
-class CachingFetcher(object):
-    def __init__(self, api_key='82f7fe9f1801d2bc36a4351d938f4327',
-                 fn='flickr'):        
-        self._flickr = flickrapi.FlickrAPI(api_key)
+class PersistentCache(object):
+    def __init__(self, function, filename, backup_ext='bak',
+                 flush_every=1000):
 
-        # this could probably be nicely done with decorators
-        self._info_fn = fn + '-info.pkl'
-        self._info_cache_count = 0
-        self._info_cache_limit = 1800 # about half an hour
+        self._function = function
+        self._flush_every = flush_every
+        self._filename = filename
+        self._backup_filename = filename + '.' + backup_ext
+
+        self._count = 0
+
+        # Try to read the cache, create if doesn't exist
         try:
-            with open(self._info_fn) as ff:
-                self._info_cache = cPickle.load(ff)
-        except IOError:            
-            self._info_cache = {}
+            with open(self._filename) as ff:
+                self._cache = cPickle.load(ff)
+        except IOError:
+            self._cache = {}
             # ensure the file exists so that when it comes time to
             # backup, the file is there.
-            with open(self._info_fn, 'wb') as ff:
-                cPickle.dump(self._info_cache, ff, protocol=2)
-            
-            
-    def _info_flush_cache(self):
-        self._info_cache_count = 0
-        shutil.copy(self._info_fn, self._info_fn + '.bak')
-        with open(self._info_fn, 'wb') as ff:
-            cPickle.dump(self._info_cache, ff, protocol=2)
-            
-    def photo_info(self, pid):
-        if pid in self._info_cache:
-            return self._info_cache[pid]
+            with open(self._filename, 'wb') as ff:
+                cPickle.dump(self._cache, ff, protocol=2)
 
+    def __call__(self, key):
+        # ok, I could do something clever with arg parsing to make
+        # this general, but I'm just using this to store flickr info
+        # based on photo-id.  So make it simple.
+
+        if key in self._cache:
+            return self._cache[key]
+
+        # Do I want to catch exceptions here or elsewhere?  Want this
+        # to be pretty transparent... so further specialize to the
+        # flicker case here:
         try:
-            result = self._flickr.photos_getInfo(photo_id=pid)
+            result = self._function(key)
         except flickrapi.FlickrError:
             result = None
 
-        self._info_cache[pid] = result
-        self._info_cache_count += 1
+        self._cache[key] = result
+        self._count += 1
 
-        if self._info_cache_count > self._info_cache_limit:
-            self._info_flush_cache()
+        if self._count > self._flush_every:
+            self.flush()
 
         return result
+    
+    def flush(self):
+        self._count = 0
+        shutil.copy(self._filename, self._backup_filename)
+        with open(self._filename, 'wb') as ff:
+            cPickle.dump(self._cache, ff, protocol=2)
+
+
+class CachingFetcher(object):
+    def __init__(self, api_key='82f7fe9f1801d2bc36a4351d938f4327',
+                 filename_base='flickr'):        
+
+        self._flickr = flickrapi.FlickrAPI(api_key)
+        info_fn = filename_base + '-info.pkl'
+        self.photo_info = PersistentCache(self.slow_getInfo, 
+                filename = filename_base + '-info.pkl')
+                
+    def slow_getInfo(self, pid):
+        return self._flickr.photos_getInfo(photo_id=pid)
+
