@@ -6,6 +6,9 @@
 
 import csv
 
+import flickr
+
+##############################
 # Give names to fields
 #
 # The webscope data file is an ordered list of tab-separated
@@ -21,6 +24,8 @@ field_names = ['photo-id', 'user-id', 'user-name',
                'secret', 'secret-original',
                'extension-original','video',]
 
+##############################
+# Type converters for individual fields
 def to_tag_list(ss):
     """Convert from string to list of strings representing tags"""
     return ss.split(',') if ss != '' else []
@@ -48,20 +53,32 @@ def to_accuracy(ss):
         result = None
     return result
 
-def read_all(fn):
-    result = []
-    with open(fn) as tsv:
-        for line in csv.reader(tsv, delimiter="\t"): 
-            result.append(to_python(line))
-
-    return result
-
+##############################
+# Dealing with whole lines
 def to_python(line):
     """Convert from a line of the webscope tsv to a python object"""
     entry = dict([(kk, vv) for kk,vv in zip(field_names, line)])
     for name, type_ in field_types:
         entry[name] = type_(entry[name])
     return entry
+
+##############################
+# Dealing with the whole file
+def read_all(fn):
+    result = []
+    with open(fn) as tsv:
+        for line in csv.reader(tsv, delimiter="\t"): 
+            result.append(to_python(line))
+    return result
+
+def read_and_fetch_photo_info(fn):
+    ff = flickr.CachingFetcher()
+    with open(fn) as tsv:
+        for line in csv.reader(tsv, delimiter="\t"): 
+            obj = to_python(line)
+            # fetch photo metadata, relying on caching to record it.
+            ff.photo_info(obj['photo-id'])
+    ff._info_flush_cache()
 
 # Do some type conversions.  This has to go at the end so the
 # functions referenced below are defined.
