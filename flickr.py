@@ -120,10 +120,90 @@ class CachingFetcher(object):
                  filename_base='flickr'):        
 
         self._flickr = flickrapi.FlickrAPI(api_key)
-        info_fn = filename_base + '-info.pkl'
+        
+        # photo info 
         self.photo_info = PersistentCache(self.slow_getInfo, 
                 filename = filename_base + '-info.pkl')
+
+        # photo favorites
+        self.photo_favorites = PersistentCache(self.slow_getFavorites, 
+                filename = filename_base + '-favorites.pkl')
+
                 
+    ##############################
+    # Stuff that queries the flickr api
     def slow_getInfo(self, pid):
         return self._flickr.photos_getInfo(photo_id=pid)
+
+    def slow_getFavorites(self, pid):
+        return self._flickr.photos_getFavorites(photo_id=pid)
+
+    ##############################
+    # Stuff that just extracts scalars from the info given by flickr
+    def views(self, pid):
+        info = self.photo_info(pid)
+        return int(info[0].attrib['views']) if info is not None else -1
+
+    def has_people(self, pid):
+        info = self.photo_info(pid)
+        result = None
+        if info is not None: 
+            for el in info[0]:
+                if el.tag == 'people':
+                    result = bool(int(el.attrib['haspeople']))
+        # if info's not there, return None
+        return result
+            
+    def comments(self, pid):
+        info = self.photo_info(pid)
+        result = -1
+        if info is not None:
+            for el in info[0]:
+                if el.tag == 'comments':
+                    result = int(el.text)
+        # if info's not there, return None
+        return result
+
+    def favorites(self, pid):
+        info = self.photo_favorites(pid)
+        result = -1
+        if info is not None:
+            result = int(info[0].attrib['total'])
+        return result
+
+    def date_uploaded(self, pid):
+        info = self.photo_info(pid)
+        result = 0
+        if info is not None:
+            result = int(info[0].attrib['dateuploaded'])
+        return result
+
+    def download_original_url(self, pid):
+        template = 'https://farm%s.staticflickr.com/%s/%s_%s_o.%s'
+        info = self.photo_info(pid)
+        if info is not None:
+            result = template % (info[0].attrib['farm'], info[0].attrib['server'], 
+                                 info[0].attrib['id'], 
+                                 info[0].attrib['originalsecret'],
+                                 info[0].attrib['originalformat'])
+        return result
+
+    def download_generic_url(self, pid):
+        template = 'https://farm%s.staticflickr.com/%s/%s_%s.jpg'
+        info = self.photo_info(pid)
+        if info is not None:
+            result = template % (info[0].attrib['farm'], info[0].attrib['server'], 
+                                 info[0].attrib['id'], info[0].attrib['secret'])
+        return result
+
+    def download_url(self, pid, size_code='z'):
+        template = 'https://farm%s.staticflickr.com/%s/%s_%s_%s.jpg'
+        info = self.photo_info(pid)
+        if info is not None:
+            result = template % (info[0].attrib['farm'], info[0].attrib['server'], 
+                                 info[0].attrib['id'], info[0].attrib['secret'], 
+                                 size_code)
+        return result
+            
+
 
