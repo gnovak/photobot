@@ -4,12 +4,14 @@
 # images in a dataset at once.
 
 import os.path
+import datetime
 
 import numpy as np
 import gsn_util as util
 
 import flickr
 import skimage as ski
+import skimage.io
 
 def beach_ds(fkr):
     # as a sample of what to do...
@@ -22,41 +24,58 @@ def beach_ds(fkr):
     # fn = 'blah'
     return inc_ids, xx, yy # , desc, fn
     
-def make_ds(fkr, ids, xx_func, prefix='square', downsample=1,
-            yy_func=None):
-    if yy_func is None: yy_func = encode_ys_median
-
-    inc_ids, ims, yy = raw_ds(fkr, ids, prefix=prefix)
+def make_ds(fkr, ids, xx_func, prefix='square-mountain', downsample=1):
+    inc_ids, ims, views, times = raw_ds(fkr, ids, prefix=prefix)
     xx = xx_func(ims, downsample)
-    yy = yy_func(yy)
+    yy = encode_ys(views, times)
     return inc_ids, xx, yy
 
 def raw_ds(fkr, ids, prefix, size_code='q'):
     """Load a dataset with minimal processing"""
     # want this to be one loop so I coherently decide whether to
     # include/exclude things
-    yy = []
+    all_views = []
     image_filenames = []
     included_ids = []
+    upload_times = []
 
     for ii in ids:
         views = fkr.views(ii) 
         fn = fkr.filename(ii, prefix, size_code)
+        time = fkr.date_uploaded(ii)
 
         # include/exclude decision here:
         if views >= 0 and os.path.isfile(fn):
             included_ids.append(ii)
             image_filenames.append(fn)
-            yy.append(views)
+            all_views.append(views)            
+            upload_times.append(time)
 
     ims = ski.io.ImageCollection(image_filenames)
-    return included_ids, ims, yy
+    return included_ids, ims, all_views, upload_times
 
-def encode_ys_log(yy):
+def encode_ys(views, times):
     """Map views to log10(views+1) to deal with zero views"""
-    return np.log10(np.array(yy)+1)
+    views, times = np.asarray(views), np.asarray(times)
+    
+    # Date on yahoo files is Aug 25, 2014, so all upload dates
+    # (should) be before then.  I'm getting view information as of
+    # ~Sept 10, 2014, so to avoid negative numbers (the future!)
+    # consider the present time to be Sept 10, 2014
 
-def encode_ys_median(yy):
+    #today = datetime.datetime(2014,8,25)
+    sec_per_year = 3.15e7
+    today = datetime.datetime(2014,9,10)
+    epoch = datetime.datetime(1970,1,1)    
+    sec_since_epoch = (today - epoch).total_seconds()
+    years = (sec_since_epoch - times)/sec_per_year
+
+    # use views + 2 so that there are no neg numbers b/c I'm
+    # going to take a log.
+    rate = (views + 2) / years
+    return np.log10(rate)
+
+def classify_by_median(yy):
     """Map views to log10(views+1) to deal with zero views"""
     return (yy > np.median(yy)).astype('d')
 
