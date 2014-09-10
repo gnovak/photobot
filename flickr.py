@@ -56,6 +56,7 @@
 import os.path
 import cPickle
 import shutil
+import os.path
 
 import flickrapi
 
@@ -115,6 +116,7 @@ class PersistentCache(object):
             cPickle.dump(self._cache, ff, protocol=2)
 
 
+# Grar, this is already a PITA with 20k photos.  
 class CachingFetcher(object):
     def __init__(self, api_key='82f7fe9f1801d2bc36a4351d938f4327',
                  filename_base='flickr'):        
@@ -207,7 +209,7 @@ class CachingFetcher(object):
     # b     large, 1024 on longest side*
     # o     original image, either a jpg, gif or png, depending on source format
     # 
-    def download_url(self, pid, size_code='z'):
+    def download_url(self, pid, size_code='q'):
         template = 'https://farm%s.staticflickr.com/%s/%s_%s_%s.jpg'
         info = self.photo_info(pid)
         result = ''
@@ -216,6 +218,11 @@ class CachingFetcher(object):
                                  info[0].attrib['id'], info[0].attrib['secret'], 
                                  size_code)
         return result
+
+    def filename(self, pid, prefix='', size_code='q'):
+        url = self.download_url(pid)
+        fn = url.split('/')[-1]
+        return os.path.join(prefix, fn)
             
 
 
