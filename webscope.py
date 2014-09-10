@@ -100,3 +100,8 @@ field_types = [('date-uploaded', int),
                ('longitude', to_lat_lon),
                ('accuracy', to_accuracy),
                ('video', to_bool)]
+
+def download_size_url(url, size_code):    
+    extension = '.jpg'
+    index = url.find(extension)
+    return url[:index] + '_' + size_code + extension
