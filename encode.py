@@ -24,10 +24,46 @@ def beach_ds(fkr):
     # fn = 'blah'
     return inc_ids, xx, yy # , desc, fn
     
-def make_ds(fkr, ids, xx_func, prefix='square-mountain', downsample=1):
+def make_ds(fkr, ids, xx_func, downsample=1, prefix='square-mountain'):
+    # probably want to do dataset downsampling before making the image collection...
     inc_ids, ims, views, times = raw_ds(fkr, ids, prefix=prefix)
+    ims = ski.io.ImageCollection(image_filenames)
     xx = xx_func(ims, downsample)
     yy = encode_ys(views, times)
+    return inc_ids, xx, yy
+
+def make_ds_preferential_downsampling(fkr, ids, xx_func, size=None, 
+                                      downsample=1, prefix='square-mountain', ):
+    # actual image data hasn't been loaded yet (ski.io.ImageCollection
+    # is clever about that) so decide what's going to go into the
+    # dataset _before_ the images are converted to vectors.
+    if size is None: size = len(ids)
+    half = int(size/2.0)
+    inc_ids, image_fns, views, times = raw_ds(fkr, ids, prefix=prefix)    
+    yy = encode_ys(views, times)    
+    order = yy.argsort()
+
+    # Select the stuff
+    bad = order[:half]
+    good = order[-half:]
+    inc_ids = np.concatenate((inc_ids[bad], inc_ids[good]))
+    image_fns = np.concatenate((image_fns[bad], image_fns[good]))
+    views = np.concatenate((views[bad], views[good]))
+    times = np.concatenate((times[bad], times[good]))
+    yy = np.concatenate((yy[bad], yy[good]))
+
+    # And finally, make yy values into classes:
+    yy = np.concatenate((np.zeros(len(bad)), np.ones(len(good))))
+
+    # randomize order in reproducible way:
+    # set seed
+    # choose random order
+    # re-order four things again
+
+    # convert to vectors
+    ims = ski.io.ImageCollection(image_fns)    
+    xx = xx_func(ims, downsample)
+
     return inc_ids, xx, yy
 
 def raw_ds(fkr, ids, prefix, size_code='q'):
@@ -45,14 +81,18 @@ def raw_ds(fkr, ids, prefix, size_code='q'):
         time = fkr.date_uploaded(ii)
 
         # include/exclude decision here:
-        if views >= 0 and os.path.isfile(fn):
+        # Checking for file existence takes too long, pre-screen the ids.
+        # if views >= 0 and os.path.isfile(fn):
+        if views >= 0:
             included_ids.append(ii)
             image_filenames.append(fn)
             all_views.append(views)            
             upload_times.append(time)
 
-    ims = ski.io.ImageCollection(image_filenames)
-    return included_ids, ims, all_views, upload_times
+    # argh, no way to concatenate image collections so do this step later
+    # ims = ski.io.ImageCollection(image_filenames)
+    return (np.asarray(included_ids), np.asarray(image_filenames), 
+            np.asarray(all_views), np.asarray(upload_times))
 
 def encode_ys(views, times):
     """Map views to log10(views+1) to deal with zero views"""
