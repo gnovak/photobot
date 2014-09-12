@@ -1,5 +1,24 @@
 # code to produce plots.
 
+import pylab as pl
+
+import encode
+import svm
+
+def downsampling(cs, models, xx_func, downsamples, size, fkr, ids):
+    pl.clf()
+
+    for ds in downsamples:
+        inc_ids,xx,yy = encode.make_ds_preferential_downsampling(fkr, ids, 
+                   xx_func, downsample=ds, size=size)
+        mm, er = svm.regularization(xx,yy,models); 
+
+        pl.errorbar(cs,mm,er)
+        pl.xscale('log')
+        pl.legend(['%d'%ds for ds in downsamples], loc='lower left')
+
+    return mm, er
+
 def ps_plot(good, bad):
 
     pl.clf()
