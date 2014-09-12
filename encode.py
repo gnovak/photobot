@@ -105,12 +105,52 @@ def ims_to_bw_vecs(ims, downsample=1):
     # downsample...
     return np.array([ski.color.rgb2grey(im).reshape(-1)[::downsample] for im in ims])
 
-def ims_to_color_vecs(ims, downsample=1):
+def ims_to_rgb_vecs(ims, downsample=1):
     # include color, make vector in dumbest way possible
     # but want to make sure keep color data from the same pixels
     # downsample...
     # doing this in rgb, normalize, make floating point
-    return np.array([np.concatenate(((1/256.0)*im[:,:,0].reshape(-1)[::downsample],
-                                     (1/256.0)*im[:,:,1].reshape(-1)[::downsample],
-                                     (1/256.0)*im[:,:,2].reshape(-1)[::downsample]))
-                     for im in ims])
+    result = []
+    for im in ims:
+        if len(im.shape) == 3:
+            vv = np.concatenate(((1/256.0)*im[:,:,0].reshape(-1)[::downsample],
+                                 (1/256.0)*im[:,:,1].reshape(-1)[::downsample],
+                                 (1/256.0)*im[:,:,2].reshape(-1)[::downsample]))
+            result.append(vv)
+        elif len(im.shape) == 2: # im is already B+W
+            # do something dumb
+            vv = np.concatenate(((1/256.0)*im.reshape(-1)[::downsample],
+                                 (1/256.0)*im.reshape(-1)[::downsample],
+                                 (1/256.0)*im.reshape(-1)[::downsample]))
+            result.append(vv)
+        else:
+            raise ValueError
+    return np.array(result)
+
+def ims_to_hsv_vecs(ims, downsample=1):
+    # include color, make vector in dumbest way possible
+    # but want to make sure keep color data from the same pixels
+    # downsample...
+    # doing this in rgb, normalize, make floating point
+    result = []
+    for im in ims:
+        hsv = ski.color.rgb2hsv(im)
+        vv = np.concatenate((im[:,:,0].reshape(-1)[::downsample],
+                             im[:,:,1].reshape(-1)[::downsample],
+                             im[:,:,2].reshape(-1)[::downsample]))
+        result.append(vv)
+    return np.array(result)
+
+def ims_to_cos_hsv_vecs(ims, downsample=1):
+    # include color, make vector in dumbest way possible
+    # but want to make sure keep color data from the same pixels
+    # downsample...
+    # doing this in rgb, normalize, make floating point
+    result = []
+    for im in ims:
+        hsv = ski.color.rgb2hsv(im)
+        vv = np.concatenate((np.cos(2*np.pi*im[:,:,0]).reshape(-1)[::downsample],
+                             im[:,:,1].reshape(-1)[::downsample],
+                             im[:,:,2].reshape(-1)[::downsample]))
+        result.append(vv)
+    return np.array(result)
