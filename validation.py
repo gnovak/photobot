@@ -11,6 +11,22 @@ def leave_one_out(vv, ii):
     return np.concatenate((vv[:ii],vv[ii+1:]))
 
 def fold(aa,kk,ii):
+    # Strided fold
+    assert 0 <= ii and ii < kk
+    if ii==0:
+        train = range(1,kk)
+    elif ii==kk-1:
+        train = range(0,kk-1)
+    else:
+        train = range(0,ii) + range(ii+1,kk)    
+
+    train = np.concatenate([aa[offset::kk] for offset in train])
+    validation = aa[ii::kk]
+
+    return train, validation
+
+def block_fold(aa,kk,ii):
+    # fold by contiguous blocks
     assert 0 <= ii and ii < kk
     nn = len(aa)
     fold_size = int(nn/(1.0*kk) + 0.5)
@@ -45,7 +61,25 @@ def loocv(vv, yy, model):
         result.append(model.predict(vv[ii])[0] == yy[ii])
     return np.array(result)
 
+def block_kfoldcv(vv, yy, model, kk=10):
+    # block k-fold cv
+    result = []
+
+    for ii in range(kk):
+        sub_vv, cv_vv = fold(vv, kk, ii)
+        sub_yy, cv_yy = fold(yy, kk, ii)
+        
+        model.fit(sub_vv, sub_yy)
+
+        # Beware rounding in classification vs. regression
+        correct = sum(model.predict(cv_vv) == cv_yy)
+        tot = 1.0*len(cv_yy)
+        result.append(correct/tot)
+
+    return np.mean(result), np.std(result)
+
 def kfoldcv(vv, yy, model, kk=10):
+    # Strided k-fold cv
     result = []
 
     for ii in range(kk):
