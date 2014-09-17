@@ -1,6 +1,7 @@
 # code to produce plots.
 
 import pylab as pl
+import numpy as np
 
 import encode
 import svm
@@ -18,6 +19,16 @@ def downsampling(cs, models, xx_func, downsamples, size, fkr, ids):
         pl.legend(['%d'%ds for ds in downsamples], loc='lower left')
 
     return mm, er
+
+def cv_plot(cs,gs,zz):
+    pl.clf()
+    means = zz[:,:,0]
+    sigs = zz[:,:,1]
+    for ii in range(len(gs)):
+        pl.errorbar(cs, means[ii],sigs[ii])
+    pl.xscale('log')
+    pl.legend(np.log10(gs), loc='lower left')
+    pl.ylim(0.48, 1.0)
 
 def ps_plot(good, bad):
 
