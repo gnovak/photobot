@@ -145,6 +145,40 @@ def ims_to_bw_vecs(ims, downsample=1):
     # downsample...
     return np.array([ski.color.rgb2grey(im).reshape(-1)[::downsample] for im in ims])
 
+def ims_to_bw_fourier(ims, downsample=1):
+    # go to greyscale + make vector in dumbest way possible
+    # downsample...
+    result = []
+    for im in ims:
+        grey = ski.color.rgb2grey(im)
+        spectrum = np.fft.fft2(grey)
+        # keep things order unity w/ norm factor that shows up in ffts
+        spectrum /= grey.size
+        # turn into vector and downsample
+        result.append(spectrum.reshape(-1)[::downsample])
+    return np.array(result)
+
+def ims_to_bw_fourier_re(ims, downsample=1):
+    result = ims_to_bw_fourier(ims, downsample=downsample)
+    return result.real
+
+def ims_to_bw_fourier_im(ims, downsample=1):
+    result = ims_to_bw_fourier(ims, downsample=downsample)
+    return result.imag
+
+def ims_to_bw_fourier_mag(ims, downsample=1):
+    result = ims_to_bw_fourier(ims, downsample=downsample)
+    return np.sqrt(result.real**2 + result.imag**2)
+
+def ims_to_bw_fourier_phase(ims, downsample=1):
+    result = ims_to_bw_fourier(ims, downsample=downsample)
+    return np.arctan2(result.imag, result.real)
+
+def ims_to_bw_mix(ims, downsample=1):
+    real = ims_to_bw_vecs(ims, downsample=2*downsample)
+    four = ims_to_bw_fourier_mag(ims, downsample=2*downsample)
+    return np.concatenate((real, four),axis=1)
+
 def ims_to_rgb_vecs(ims, downsample=1):
     # include color, make vector in dumbest way possible
     # but want to make sure keep color data from the same pixels
@@ -166,6 +200,59 @@ def ims_to_rgb_vecs(ims, downsample=1):
         else:
             raise ValueError
     return np.array(result)
+
+def ims_to_rgb_fourier(ims, downsample=1):
+    # downsample...
+    result = []
+
+    for im in ims:
+        # if im is already bw, do something dumb to make it look like color
+        if len(im.shape)==2:
+            the_im = np.zeros(im.shape + (3,))
+            the_im[:,:,0] = im
+            the_im[:,:,1] = im
+            the_im[:,:,2] = im
+            im = the_im
+
+        # Normalize pixel values to 0-1
+        im = im/256.0
+
+        rfft = np.fft.fft2(im[:,:,0])
+        gfft = np.fft.fft2(im[:,:,1])
+        bfft = np.fft.fft2(im[:,:,2])
+
+        # keep things order unity w/ norm factor that shows up in ffts
+        rfft /= rfft.size
+        gfft /= gfft.size
+        bfft /= bfft.size
+
+        # turn into vector and downsample
+        result.append(np.concatenate((rfft.reshape(-1)[::downsample],
+                                      gfft.reshape(-1)[::downsample],
+                                      bfft.reshape(-1)[::downsample])))
+
+    return np.array(result)
+
+def ims_to_rgb_fourier_re(ims, downsample=1):
+    result = ims_to_rgb_fourier(ims, downsample=downsample)
+    return result.real
+
+def ims_to_rgb_fourier_im(ims, downsample=1):
+    result = ims_to_rgb_fourier(ims, downsample=downsample)
+    return result.imag
+
+def ims_to_rgb_fourier_mag(ims, downsample=1):
+    result = ims_to_rgb_fourier(ims, downsample=downsample)
+    return np.sqrt(result.real**2 + result.imag**2)
+
+def ims_to_rgb_fourier_phase(ims, downsample=1):
+    result = ims_to_rgb_fourier(ims, downsample=downsample)
+    return np.arctan2(result.imag, result.real)
+
+def ims_to_rgb_mix(ims, downsample=1):
+    real = ims_to_rgb_vecs(ims, downsample=2*downsample)
+    four = ims_to_rgb_fourier_mag(ims, downsample=2*downsample)
+    return np.concatenate((real, four),axis=1)
 
 def ims_to_hsv_vecs(ims, downsample=1):
     # include color, make vector in dumbest way possible
