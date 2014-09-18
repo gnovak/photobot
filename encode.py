@@ -40,7 +40,7 @@ def make_ds_preferential_downsampling(fkr, ids, xx_func, size=None,
     if size is None: size = len(ids)
     half = int(size/2.0)
     inc_ids, image_fns, views, times = raw_ds(fkr, ids, prefix=prefix)    
-    yy = encode_ys(views, times)    
+    yy = encode_ys(views, times)
     order = yy.argsort()
 
     # Select the stuff
@@ -65,6 +65,141 @@ def make_ds_preferential_downsampling(fkr, ids, xx_func, size=None,
     xx = xx_func(ims, downsample)
 
     return inc_ids, xx, yy
+
+def make_ds_preferential_downsampling_multi(fkr, all_ids, xx_func, size=None,
+                                      downsample=1, nsets=2, prefix='square-mountain'):
+
+    # actual image data hasn't been loaded yet (ski.io.ImageCollection
+    # is clever about that) so decide what's going to go into the
+    # dataset _before_ the images are converted to vectors.
+    if size is None: size = len(all_ids)
+
+    total_size = len(all_ids)
+    desired_size = size
+    segment_sizes = [int(desired_size/2**ii) if int(desired_size/2**ii) > 0 else 1
+                     for ii in range(1,nsets)]
+    segment_locs = (total_size/nsets)*np.arange(nsets-1)
+
+    # find boundaries
+    limits = []
+    for loc,sz in zip(segment_locs, segment_sizes):
+        limits.append([loc, loc+sz])
+    # Last one is a special case
+    limits.append([total_size - sz,total_size])
+
+    # adjust boundaries if necessary to prevent overlaps.  Ugh, index
+    # hell b/c I need to reference the previous element in the list
+    for ii in range(1,len(limits)):
+        if limits[ii][0] < limits[ii-1][1]:
+            new_start = limits[ii-1][1]+1
+            new_end = new_start + limits[ii][1]-limits[ii][0]
+            limits[ii] = [new_start, new_end]
+
+    # get raw data
+    ids, image_fns, views, times = raw_ds(fkr, all_ids, prefix=prefix)
+    yy = encode_ys(views, times)
+    order = yy.argsort()
+
+    # return nsets-1 datasets.  Each one is the bottom set plus the
+    # concatenation of all sets above it.
+    data_sets = []
+
+    for iset in range(nsets-1):
+        # Select the stuff
+        bad = order[limits[iset][0]:limits[iset][1]]
+        # Get ready, a little more index hell:
+        good = np.concatenate([ order[limits[jj][0]:limits[jj][1]]
+                                for jj in range(iset+1,nsets)])
+
+        inc_ids = np.concatenate((ids[bad], ids[good]))
+        inc_image_fns = np.concatenate((image_fns[bad], image_fns[good]))
+        inc_views = np.concatenate((views[bad], views[good]))
+        inc_times = np.concatenate((times[bad], times[good]))
+        inc_yy = np.concatenate((yy[bad], yy[good]))
+
+        # And finally, make yy values into classes:
+        inc_yy = np.concatenate((np.zeros(len(bad)), np.ones(len(good))))
+
+        # randomize order in reproducible way:
+        # set seed
+        # choose random order
+        # re-order four things again
+
+        # convert to vectors
+        inc_ims = ski.io.ImageCollection(inc_image_fns)
+        inc_xx = xx_func(inc_ims, downsample)
+        data_sets.append((inc_ids, inc_xx,inc_yy))
+
+    return data_sets
+
+def make_ds_preferential_downsampling_grar(fkr, all_ids, xx_func, size=None,
+                                      downsample=1, nsets=2, prefix='square-mountain'):
+
+    # Include _all_ bottom images rather than just bottom half.
+
+    # actual image data hasn't been loaded yet (ski.io.ImageCollection
+    # is clever about that) so decide what's going to go into the
+    # dataset _before_ the images are converted to vectors.
+    if size is None: size = len(all_ids)
+
+    total_size = len(all_ids)
+    desired_size = size
+    segment_sizes = [int(desired_size/2**ii) if int(desired_size/2**ii) > 0 else 1
+                     for ii in range(1,nsets)]
+    segment_locs = (total_size/nsets)*np.arange(nsets-1)
+
+    # find boundaries
+    limits = []
+    for loc,sz in zip(segment_locs, segment_sizes):
+        limits.append([loc, loc+sz])
+    # Last one is a special case
+    limits.append([total_size - sz,total_size])
+
+    # adjust boundaries if necessary to prevent overlaps.  Ugh, index
+    # hell b/c I need to reference the previous element in the list
+    for ii in range(1,len(limits)):
+        if limits[ii][0] < limits[ii-1][1]:
+            new_start = limits[ii-1][1]+1
+            new_end = new_start + limits[ii][1]-limits[ii][0]
+            limits[ii] = [new_start, new_end]
+
+    # get raw data
+    ids, image_fns, views, times = raw_ds(fkr, all_ids, prefix=prefix)
+    yy = encode_ys(views, times)
+    order = yy.argsort()
+
+    # return nsets-1 datasets.  Each one is the bottom set plus the
+    # concatenation of all sets above it.
+    data_sets = []
+
+    for iset in range(nsets-1):
+        # Select the stuff
+        # Get ready, a little more index hell:
+        bad = np.concatenate([ order[limits[jj][0]:limits[jj][1]]
+                                for jj in range(0,iset+1)])
+        good = np.concatenate([ order[limits[jj][0]:limits[jj][1]]
+                                for jj in range(iset+1,nsets)])
+
+        inc_ids = np.concatenate((ids[bad], ids[good]))
+        inc_image_fns = np.concatenate((image_fns[bad], image_fns[good]))
+        inc_views = np.concatenate((views[bad], views[good]))
+        inc_times = np.concatenate((times[bad], times[good]))
+        inc_yy = np.concatenate((yy[bad], yy[good]))
+
+        # And finally, make yy values into classes:
+        inc_yy = np.concatenate((np.zeros(len(bad)), np.ones(len(good))))
+
+        # randomize order in reproducible way:
+        # set seed
+        # choose random order
+        # re-order four things again
+
+        # convert to vectors
+        inc_ims = ski.io.ImageCollection(inc_image_fns)
+        inc_xx = xx_func(inc_ims, downsample)
+        data_sets.append((inc_ids, inc_xx,inc_yy))
+
+    return data_sets
 
 def raw_ds(fkr, ids, prefix, size_code='q'):
     """Load a dataset with minimal processing"""
